@@ -39,32 +39,6 @@ describe("persist proxy - null auto-vivification bug", () => {
       ownerId: null as string | null,
       firstMoveMadeAt: null as number | null,
       completedAt: null as number | null,
-describe("persist proxy - error handler heap overflow bug", () => {
-  it("should return undefined on error instead of creating infinite proxy chain", () => {
-    // Create an object with a throwing getter
-    const throwingObj = {
-      get badProp(): never {
-        throw new Error("This getter throws");
-      },
-      normalProp: "hello",
-    };
-
-    const proxied = createTestProxy(throwingObj);
-
-    // Accessing the throwing getter should return undefined, not create {} and recurse
-    // Before the fix, this would cause a heap overflow from infinite proxy recursion
-    const result = proxied.badProp;
-
-    expect(result).toBe(undefined);
-    // The normal prop should still work
-    expect(proxied.normalProp).toBe("hello");
-  });
-
-  it("should not corrupt the original object on error", () => {
-    const original: Record<string, any> = {
-      get explosive(): never {
-        throw new Error("boom");
-      },
     };
 
     const proxied = createTestProxy(original);
@@ -157,6 +131,37 @@ describe("persist proxy - error handler heap overflow bug", () => {
     expect(original.falseValue).toBe(false);
     expect(original.emptyString).toBe("");
   });
+});
+
+describe("persist proxy - error handler heap overflow bug", () => {
+  it("should return undefined on error instead of creating infinite proxy chain", () => {
+    // Create an object with a throwing getter
+    const throwingObj = {
+      get badProp(): never {
+        throw new Error("This getter throws");
+      },
+      normalProp: "hello",
+    };
+
+    const proxied = createTestProxy(throwingObj);
+
+    // Accessing the throwing getter should return undefined, not create {} and recurse
+    // Before the fix, this would cause a heap overflow from infinite proxy recursion
+    const result = proxied.badProp;
+
+    expect(result).toBe(undefined);
+    // The normal prop should still work
+    expect(proxied.normalProp).toBe("hello");
+  });
+
+  it("should not corrupt the original object on error", () => {
+    const original: Record<string, unknown> = {
+      get explosive(): never {
+        throw new Error("boom");
+      },
+    };
+
+    const proxied = createTestProxy(original);
 
     // Access the throwing getter
     void proxied.explosive;

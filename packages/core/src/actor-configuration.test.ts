@@ -46,7 +46,7 @@ describe("Actor configuration overrides", () => {
     }
 
     const actor = new CustomPathActor(undefined, undefined);
-    (actor as Record<string, unknown>)["_setNameCalled"] = true;
+    (actor as unknown as Record<string, unknown>)["_setNameCalled"] = true;
 
     const upgradeResponse = await actor.fetch(
       new Request("https://example.com/custom/game", {
