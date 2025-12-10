@@ -2,9 +2,9 @@ import { env, DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import { Storage } from "../../storage/src/index";
 import { Alarms } from "../../alarms/src/index";
 import { Sockets } from "../../sockets/src/index";
-import { Persist, PERSISTED_VALUES, initializePersistedProperties, persistProperty, unwrapProxy } from "./persist";
+import { Persist, PERSISTED_VALUES, initializePersistedProperties, persistProperty, unwrapProxy, IS_PROXIED } from "./persist";
 
-export { Persist };
+export { Persist, unwrapProxy, IS_PROXIED };
 
 export * from "./retries";
 
