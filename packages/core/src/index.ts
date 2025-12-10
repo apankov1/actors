@@ -216,6 +216,9 @@ export abstract class Actor<E> extends DurableObject<E> {
                     }
                     return unwrapProxy(result);
                 };
+
+                // Prevent base class methods from overwriting subclass overrides
+                skipMethods.add(name);
             }
             proto = Object.getPrototypeOf(proto);
         }
