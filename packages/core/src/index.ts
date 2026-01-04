@@ -380,6 +380,18 @@ export abstract class Actor<E> extends DurableObject<E> {
     }
 
     async webSocketMessage(ws: WebSocket, message: any) {
+        // Wait for initialization to complete before handling WebSocket messages.
+        // This ensures onWebSocketMessage has access to the correct identifier and state.
+        // Same pattern as fetch() and alarm() use.
+        if (!this._setNameCalled) {
+            try {
+                await this._waitForSetName();
+            } catch (error) {
+                console.error('Failed to wait for setName in webSocketMessage:', error);
+                throw error;
+            }
+        }
+
         this.sockets.webSocketMessage(ws, message);
 
         // Call user defined onWebSocketMessage method before proceeding
@@ -390,6 +402,18 @@ export abstract class Actor<E> extends DurableObject<E> {
         ws: WebSocket,
         code: number
     ) {
+        // Wait for initialization to complete before handling WebSocket close.
+        // This ensures onWebSocketDisconnect has access to the correct identifier and state.
+        // Same pattern as fetch(), alarm(), and webSocketMessage() use.
+        if (!this._setNameCalled) {
+            try {
+                await this._waitForSetName();
+            } catch (error) {
+                console.error('Failed to wait for setName in webSocketClose:', error);
+                throw error;
+            }
+        }
+
         // Close the WebSocket connection
         this.sockets.webSocketClose(ws, code);
 
@@ -398,6 +422,18 @@ export abstract class Actor<E> extends DurableObject<E> {
     }
 
     async alarm(alarmInfo?: AlarmInvocationInfo): Promise<void> {
+        // Wait for initialization to complete before running onAlarm.
+        // This ensures onAlarm has access to the correct identifier and state.
+        // Same pattern as fetch() uses for onRequest.
+        if (!this._setNameCalled) {
+            try {
+                await this._waitForSetName();
+            } catch (error) {
+                console.error('Failed to wait for setName in alarm:', error);
+                throw error;
+            }
+        }
+
         // Call user defined onAlarm method before proceeding
         await this.onAlarm(alarmInfo);
 
