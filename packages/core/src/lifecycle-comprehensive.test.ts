@@ -69,7 +69,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
     it("fetch() waits for initialization when _setNameCalled=false", async () => {
       const callOrder: string[] = [];
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           callOrder.push("onInit");
         }
@@ -94,7 +94,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
     it("alarm() waits for initialization when _setNameCalled=false (FIXED)", async () => {
       const callOrder: string[] = [];
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           callOrder.push("onInit");
         }
@@ -126,7 +126,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
        */
       const callOrder: string[] = [];
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           callOrder.push("onInit");
         }
@@ -157,7 +157,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
        */
       const callOrder: string[] = [];
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           callOrder.push("onInit");
         }
@@ -186,7 +186,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
     it("concurrent fetch() and alarm() both wait for single onInit()", async () => {
       let initCount = 0;
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           initCount++;
           await new Promise((resolve) => setTimeout(resolve, 10));
@@ -232,7 +232,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
         initPromiseResolve = r;
       });
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           callOrder.push("onInit:start");
           await initBarrier; // Wait at barrier
@@ -290,7 +290,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
     it("setName() is idempotent - only calls onInit once", async () => {
       let initCount = 0;
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           initCount++;
         }
@@ -320,7 +320,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
        */
       const callOrder: string[] = [];
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           callOrder.push("onInit");
         }
@@ -351,7 +351,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
 
   describe("fault injection - error handling in lifecycle", () => {
     it("error in onInit propagates to setName caller", async () => {
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           throw new Error("Init failed");
         }
@@ -370,7 +370,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
        * If setName() throws in onInit, _setNameCalled never becomes true.
        * Result: fetch() times out after 5 seconds.
        */
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           throw new Error("Init failed");
         }
@@ -429,7 +429,7 @@ describe("Additional Entry Point Tests", () => {
       let initCount = 0;
       const callOrder: string[] = [];
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           initCount++;
           callOrder.push("onInit");
@@ -464,7 +464,7 @@ describe("Additional Entry Point Tests", () => {
     it("webSocketMessage during webSocketClose both proceed correctly", async () => {
       const callOrder: string[] = [];
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           callOrder.push("onInit");
         }
@@ -511,7 +511,7 @@ describe("Additional Entry Point Tests", () => {
       const callOrder: string[] = [];
       const initBarrier = createBarrier();
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           callOrder.push("onInit:start");
           await initBarrier.wait();
@@ -556,7 +556,7 @@ describe("Additional Entry Point Tests", () => {
     it("setName with different IDs uses first ID only", async () => {
       const identifiers: string[] = [];
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           // @ts-expect-error - accessing protected property for test
           identifiers.push(this.identifier);
@@ -576,7 +576,7 @@ describe("Additional Entry Point Tests", () => {
     it("concurrent setName calls all resolve with first ID", async () => {
       let initCount = 0;
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           initCount++;
           await new Promise((r) => setTimeout(r, 10));
@@ -600,7 +600,7 @@ describe("Additional Entry Point Tests", () => {
     it("error in onWebSocketMessage does not affect other connections", async () => {
       let messageCount = 0;
 
-      class TestActor extends Actor {
+      class TestActor extends Actor<unknown> {
         override async onInit(): Promise<void> {}
 
         override onWebSocketMessage(_ws: WebSocket, message: unknown): void {

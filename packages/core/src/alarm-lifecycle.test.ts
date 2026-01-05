@@ -39,7 +39,7 @@ describe("Actor alarm lifecycle", () => {
      */
     const callOrder: string[] = [];
 
-    class TestActor extends Actor {
+    class TestActor extends Actor<unknown> {
       override async onInit(): Promise<void> {
         callOrder.push("onInit");
       }
@@ -74,7 +74,7 @@ describe("Actor alarm lifecycle", () => {
      */
     const callOrder: string[] = [];
 
-    class TestActor extends Actor {
+    class TestActor extends Actor<unknown> {
       override async onInit(): Promise<void> {
         callOrder.push("onInit");
       }
@@ -105,7 +105,7 @@ describe("Actor alarm lifecycle", () => {
      * Before the fix, onAlarm would be called immediately without any
      * initialization.
      */
-    class TestActor extends Actor {
+    class TestActor extends Actor<unknown> {
       override async onInit(): Promise<void> {}
       override async onAlarm(): Promise<void> {}
     }
@@ -123,7 +123,7 @@ describe("Actor alarm lifecycle", () => {
     let initCount = 0;
     let alarmCount = 0;
 
-    class TestActor extends Actor {
+    class TestActor extends Actor<unknown> {
       override async onInit(): Promise<void> {
         initCount++;
       }
@@ -154,7 +154,7 @@ describe("Actor alarm lifecycle", () => {
   it("verifies setName is idempotent - second call does not re-run onInit", async () => {
     let initCount = 0;
 
-    class TestActor extends Actor {
+    class TestActor extends Actor<unknown> {
       override async onInit(): Promise<void> {
         initCount++;
       }

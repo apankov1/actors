@@ -42,7 +42,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
       const tracker = createCallOrderTracker();
       const state = { requestCount: 0, messageCount: 0, initialized: false };
 
-      class SessionActor extends Actor {
+      class SessionActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
           tracker.push("onInit");
           state.initialized = true;
@@ -120,7 +120,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
 
       let capturedStates: Partial<ActorState>[] = [];
 
-      class StatefulActor extends Actor {
+      class StatefulActor extends Actor<unknown> {
         private actorState: ActorState = {
           userId: "",
           permissions: [],
@@ -176,7 +176,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
     it("state mutations in handlers persist across calls", async () => {
       let counter = 0;
 
-      class CounterActor extends Actor {
+      class CounterActor extends Actor<unknown> {
         private count = 0;
 
         override async onInit(): Promise<void> {
@@ -212,7 +212,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
     it("interleaved fetch and WebSocket operations", async () => {
       const operations: string[] = [];
 
-      class MixedActor extends Actor {
+      class MixedActor extends Actor<unknown> {
         override async onInit(): Promise<void> {}
 
         override async onRequest(request: Request): Promise<Response> {
@@ -250,7 +250,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
     it("multiple WebSocket connections concurrently", async () => {
       const messages: string[] = [];
 
-      class MultiWSActor extends Actor {
+      class MultiWSActor extends Actor<unknown> {
         override async onInit(): Promise<void> {}
 
         override onWebSocketMessage(ws: WebSocket, message: unknown): void {
@@ -285,7 +285,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
     it("error in fetch handler does not affect WebSocket handlers", async () => {
       let wsMessageCount = 0;
 
-      class ErrorIsolationActor extends Actor {
+      class ErrorIsolationActor extends Actor<unknown> {
         override async onInit(): Promise<void> {}
 
         override async onRequest(_request: Request): Promise<Response> {
@@ -316,7 +316,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
     it("error in one WS message does not affect subsequent messages", async () => {
       const processed: string[] = [];
 
-      class WSErrorActor extends Actor {
+      class WSErrorActor extends Actor<unknown> {
         override async onInit(): Promise<void> {}
 
         override onWebSocketMessage(_ws: WebSocket, message: unknown): void {
@@ -343,7 +343,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
     it("error in alarm does not affect fetch handlers", async () => {
       let fetchCount = 0;
 
-      class AlarmErrorActor extends Actor {
+      class AlarmErrorActor extends Actor<unknown> {
         override async onInit(): Promise<void> {}
 
         override async onRequest(_request: Request): Promise<Response> {
@@ -376,7 +376,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
       const operations: string[] = [];
       let actorRef: ReentranceActor;
 
-      class ReentranceActor extends Actor {
+      class ReentranceActor extends Actor<unknown> {
         override async onInit(): Promise<void> {}
 
         override async onRequest(_request: Request): Promise<Response> {
@@ -409,25 +409,21 @@ describe("E2E: Full Actor Session Lifecycle", () => {
     it("identifier is set correctly and available everywhere", async () => {
       const identifiers: (string | undefined)[] = [];
 
-      class IdentifierActor extends Actor {
+      class IdentifierActor extends Actor<unknown> {
         override async onInit(): Promise<void> {
-          // @ts-expect-error - accessing protected property
           identifiers.push(this.identifier);
         }
 
         override async onRequest(_request: Request): Promise<Response> {
-          // @ts-expect-error - accessing protected property
           identifiers.push(this.identifier);
           return new Response("ok");
         }
 
         override onWebSocketMessage(_ws: WebSocket, _message: unknown): void {
-          // @ts-expect-error - accessing protected property
           identifiers.push(this.identifier);
         }
 
         override async onAlarm(): Promise<void> {
-          // @ts-expect-error - accessing protected property
           identifiers.push(this.identifier);
         }
       }
@@ -458,7 +454,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
     it("handles burst of operations without race conditions", async () => {
       let counter = 0;
 
-      class BurstActor extends Actor {
+      class BurstActor extends Actor<unknown> {
         override async onInit(): Promise<void> {}
 
         override async onRequest(_request: Request): Promise<Response> {
@@ -513,7 +509,7 @@ describe("onInit failure recovery", () => {
     let initAttempts = 0;
     let shouldFail = true;
 
-    class FailingInitActor extends Actor {
+    class FailingInitActor extends Actor<unknown> {
       override async onInit(): Promise<void> {
         initAttempts++;
         if (shouldFail) {
@@ -543,7 +539,7 @@ describe("onInit failure recovery", () => {
     let initFailed = false;
     let handlerCalled = false;
 
-    class FailingInitActor2 extends Actor {
+    class FailingInitActor2 extends Actor<unknown> {
       override async onInit(): Promise<void> {
         initFailed = true;
         throw new Error("Init failed");
@@ -577,7 +573,7 @@ describe("onInit failure recovery", () => {
      *
      * Currently none of this exists - no failure tracking at all.
      */
-    class TestActor extends Actor {
+    class TestActor extends Actor<unknown> {
       checkInitState() {
         // These properties don't exist but should:
         // @ts-expect-error - property doesn't exist
