@@ -362,8 +362,8 @@ export function Persist(target: any, propertyKeyOrContext: string | ClassFieldDe
                 }
             };
             
-            // If the initial value is an object, create a proxy for it
-            if (initialValue !== null && typeof initialValue === 'object' && !Array.isArray(initialValue)) {
+            // If the initial value is an object or array, create a proxy for it
+            if (initialValue !== null && typeof initialValue === 'object') {
                 initialValue = createDeepProxy(initialValue, instance, propertyKey, triggerPersist);
             }
             
