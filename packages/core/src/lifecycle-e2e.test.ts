@@ -535,9 +535,19 @@ describe("onInit failure recovery", () => {
     // Actor is permanently broken - no way to call onInit again
   });
 
-  it("BUG: entry points proceed after failed onInit", async () => {
+  it("FIXED: entry points do NOT proceed after failed onInit", async () => {
+    /**
+     * AFTER FIX: If onInit() throws, _setNameCalled is never set to true.
+     * This means entry points will wait (and eventually timeout) instead of
+     * proceeding against broken state.
+     *
+     * BEFORE: _setNameCalled was set BEFORE onInit, so handlers ran on
+     * partially-initialized actors even after init failure.
+     *
+     * AFTER: _setNameCalled is set AFTER onInit, so init failure means
+     * handlers never see the ready signal.
+     */
     let initFailed = false;
-    let handlerCalled = false;
 
     class FailingInitActor2 extends Actor<unknown> {
       override async onInit(): Promise<void> {
@@ -546,7 +556,6 @@ describe("onInit failure recovery", () => {
       }
 
       override async onRequest(_request: Request): Promise<Response> {
-        handlerCalled = true;
         return new Response("ok");
       }
     }
@@ -557,10 +566,12 @@ describe("onInit failure recovery", () => {
     await expect(actor.setName("test-id")).rejects.toThrow("Init failed");
     expect(initFailed).toBe(true);
 
-    // BUG: _setNameCalled is true, so fetch() proceeds!
-    // The actor is in a broken state but handlers still run
-    await actor.fetch(new Request("https://example.com"));
-    expect(handlerCalled).toBe(true); // Handler ran despite failed init!
+    // FIXED: _setNameCalled is false because onInit failed before it could be set.
+    // fetch() will wait for _setNameCalled which never comes.
+    // In test env, _waitForSetName uses scheduler.wait(0) which doesn't exist,
+    // so fetch() catches the error and returns a 503 Response.
+    const response = await actor.fetch(new Request("https://example.com"));
+    expect(response.status).toBe(503);
   });
 
   it("BUG: no _initFailed flag to track initialization failure", async () => {

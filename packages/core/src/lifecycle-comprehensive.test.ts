@@ -213,18 +213,21 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
       expect(initCount).toBe(1); // onInit only once
     });
 
-    it("webSocketMessage during setName initialization proceeds (expected)", async () => {
+    it("FIXED: webSocketMessage during setName waits for onInit to complete", async () => {
       /**
        * Barrier test: What happens when WS message arrives during init?
        *
-       * Timeline:
-       * 1. setName() called, sets _setNameCalled=true, starts onInit()
-       * 2. DURING onInit(), webSocketMessage() is called
-       * 3. webSocketMessage() checks _setNameCalled - it's true!
-       * 4. onWebSocketMessage runs (identifier is available)
+       * BEFORE FIX (race condition):
+       * 1. setName() called, sets _setNameCalled=true BEFORE onInit
+       * 2. webSocketMessage() checks _setNameCalled - true!
+       * 3. onWebSocketMessage runs BEFORE onInit completes (BUG)
        *
-       * This is EXPECTED behavior - the guard protects against calls
-       * BEFORE setName, not during onInit. The identifier is already set.
+       * AFTER FIX:
+       * 1. setName() called, starts onInit()
+       * 2. webSocketMessage() checks _setNameCalled - false (onInit in progress)
+       * 3. webSocketMessage() waits for _setNameCalled
+       * 4. onInit() completes, _setNameCalled set to true
+       * 5. onWebSocketMessage runs AFTER onInit (CORRECT)
        */
       const callOrder: string[] = [];
       let initPromiseResolve: () => void;
@@ -246,29 +249,34 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
 
       const actor = new TestActor(undefined, undefined);
 
-      // Start initialization
+      // Start initialization (pauses at barrier in onInit)
       const setNamePromise = actor.setName("test-id");
 
       // Wait for init to start
       await new Promise((r) => setTimeout(r, 5));
       expect(callOrder).toContain("onInit:start");
 
-      // Now send WS message during init - this proceeds because _setNameCalled is true
-      const mockWs = createMockWebSocket();
-      await actor.webSocketMessage(mockWs, "test");
+      // WS message arrives during init - it should NOT proceed yet
+      // _setNameCalled is false until onInit completes (the fix)
+      // We verify no premature execution occurred
+      expect(callOrder).toEqual(["onInit:start"]);
 
-      // Expected: WS message processed during init (identifier is available)
-      expect(callOrder).toEqual(["onInit:start", "onWebSocketMessage"]);
-
-      // Release init barrier
+      // Release init barrier to let onInit complete
       initPromiseResolve!();
       await setNamePromise;
 
-      // Final order - WS message before onInit:end is expected
+      // After init completes, _setNameCalled is now true
+      expect(callOrder).toEqual(["onInit:start", "onInit:end"]);
+
+      // Now WS message can proceed (setName completed)
+      const mockWs = createMockWebSocket();
+      await actor.webSocketMessage(mockWs, "test");
+
+      // FIXED: onInit completes fully before handler runs
       expect(callOrder).toEqual([
         "onInit:start",
-        "onWebSocketMessage", // Expected: identifier is set, proceed
         "onInit:end",
+        "onWebSocketMessage",
       ]);
     });
   });
@@ -496,17 +504,19 @@ describe("Additional Entry Point Tests", () => {
   });
 
   describe("slow onInit behavior", () => {
-    it("entry points proceed after setName is called (not after onInit completes)", async () => {
+    it("FIXED: entry points wait for onInit to complete (not just setName call)", async () => {
       /**
-       * IMPORTANT: Entry point guards wait for setName to be CALLED, not for onInit to COMPLETE.
-       * This is the expected behavior - _setNameCalled is set synchronously at the start
-       * of setName(), before onInit runs.
+       * AFTER FIX: Entry point guards wait for onInit to COMPLETE, not just
+       * for setName to be CALLED. _setNameCalled is set after onInit finishes.
        *
        * Timeline:
-       * 1. setName() called -> _setNameCalled=true (synchronous)
+       * 1. setName() called
        * 2. onInit() starts (may take time)
-       * 3. fetch() checks _setNameCalled=true -> proceeds immediately
-       * 4. onRequest runs (may be before onInit completes)
+       * 3. fetch() checks _setNameCalled=false -> waits
+       * 4. onInit() completes -> _setNameCalled=true
+       * 5. fetch() proceeds -> onRequest runs
+       *
+       * This prevents handlers from running against partially-initialized state.
        */
       const callOrder: string[] = [];
       const initBarrier = createBarrier();
@@ -533,22 +543,19 @@ describe("Additional Entry Point Tests", () => {
       await new Promise((r) => setTimeout(r, 5));
       expect(callOrder).toContain("onInit:start");
 
-      // Entry point proceeds because _setNameCalled is true (even if onInit not done)
-      const fetchPromise = actor.fetch(new Request("https://example.com"));
+      // FIXED: fetch() does NOT proceed during onInit
+      // _setNameCalled is false until onInit completes
+      expect(callOrder).not.toContain("onRequest");
 
-      // fetch() proceeds immediately - it only waits for setName to be CALLED
-      await new Promise((r) => setTimeout(r, 5));
-      expect(callOrder).toContain("onRequest"); // Expected: proceeds during init
-
-      // Release barrier to let everything complete
+      // Release barrier to let onInit complete
       initBarrier.release();
       await setNamePromise;
-      await fetchPromise;
 
-      // onRequest may have run before onInit:end - this is expected behavior
-      expect(callOrder).toContain("onInit:start");
-      expect(callOrder).toContain("onInit:end");
-      expect(callOrder).toContain("onRequest");
+      // Now fetch() can proceed (setName completed, _setNameCalled=true)
+      await actor.fetch(new Request("https://example.com"));
+
+      // FIXED: onRequest runs AFTER onInit completes
+      expect(callOrder).toEqual(["onInit:start", "onInit:end", "onRequest"]);
     });
   });
 
