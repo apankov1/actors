@@ -60,17 +60,14 @@ class PropertyTestActor {
   /**
    * Simulate setName (called by Cloudflare before any entry point)
    *
-   * IMPORTANT: Matches real Actor implementation:
-   * - _setNameCalled set synchronously BEFORE onInit
-   * - _onInitCalled set synchronously BEFORE awaiting onInit
-   * - This prevents race conditions in concurrent calls
+   * FIXED: Matches the corrected Actor implementation:
+   * - _setNameCalled set AFTER onInit completes (not before)
+   * - _onInitCalled set BEFORE awaiting onInit (race guard for concurrent calls)
+   * - This prevents handlers from running against partially-initialized state
    */
   async setName(name: string): Promise<void> {
     // Set identifier immediately (line 84 in real code)
     this.identifier = name;
-    // Mark setName as called immediately (line 86 in real code)
-    this._setNameCalled = true;
-    this._setNameResolve?.();
 
     // Guard: only call onInit once (lines 93-96 in real code)
     // _onInitCalled is set BEFORE await to prevent race conditions
@@ -88,6 +85,11 @@ class PropertyTestActor {
         throw error;
       }
     }
+
+    // FIXED: Mark setName as called AFTER onInit completes
+    // This prevents _waitForSetName from resolving prematurely
+    this._setNameCalled = true;
+    this._setNameResolve?.();
   }
 
   /**

@@ -83,8 +83,7 @@ export abstract class Actor<E> extends DurableObject<E> {
     public async setName(id: string) {
         this.identifier = id;
         this._name = id;
-        this._setNameCalled = true;
-      
+
         // Set the actor name on our alarm so it can store a reference to the actor
         // when an alarm is set (so actors awoken by alarms can be referenced by name).
         this.alarms.actorName = this.identifier;
@@ -94,6 +93,12 @@ export abstract class Actor<E> extends DurableObject<E> {
             this._onInitCalled = true;
             await this.onInit();
         }
+
+        // Signal readiness AFTER onInit completes.
+        // _waitForSetName() polls this flag before allowing fetch/alarm/webSocket
+        // handlers to proceed. Setting it before onInit created a race where
+        // handlers could run against partially-initialized state.
+        this._setNameCalled = true;
     }
 
     /**
