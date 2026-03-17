@@ -195,7 +195,14 @@ export abstract class Actor<E> extends DurableObject<E> {
     }
 
     /**
-     * Wraps all public methods to unwrap proxy return values for RPC serialization.
+     * Wraps all public methods to unwrap @Persist proxy return values for RPC serialization.
+     *
+     * IMPORTANT: Wraps on the PROTOTYPE, not as instance properties. CF's DO RPC runtime
+     * discovers methods via the prototype chain. Instance properties shadow prototype methods
+     * and cause "The RPC receiver does not implement the method" errors.
+     *
+     * Each prototype method is wrapped at most once (idempotent via _rpcWrapped flag).
+     *
      * @private
      */
     private _wrapMethodsForRpc(): void {
@@ -205,22 +212,32 @@ export abstract class Actor<E> extends DurableObject<E> {
         ]);
 
         let proto = Object.getPrototypeOf(this);
-        while (proto && proto !== Object.prototype) {
+        while (proto && proto !== Object.prototype && proto !== DurableObject.prototype) {
             for (const name of Object.getOwnPropertyNames(proto)) {
                 if (skipMethods.has(name) || name.startsWith('_')) continue;
 
                 const descriptor = Object.getOwnPropertyDescriptor(proto, name);
                 if (!descriptor || typeof descriptor.value !== 'function') continue;
 
+                // Skip if already wrapped (idempotent — multiple subclass instances share prototype)
                 const original = descriptor.value;
-                const self = this;
-                (this as Record<string, unknown>)[name] = function(...args: unknown[]) {
-                    const result = original.apply(self, args);
+                if ((original as any)._rpcWrapped) continue;
+
+                const wrapped = function(this: any, ...args: unknown[]) {
+                    const result = original.apply(this, args);
                     if (result instanceof Promise) {
                         return result.then((v: unknown) => unwrapProxy(v));
                     }
                     return unwrapProxy(result);
                 };
+                (wrapped as any)._rpcWrapped = true;
+
+                Object.defineProperty(proto, name, {
+                    value: wrapped,
+                    writable: true,
+                    configurable: true,
+                    enumerable: descriptor.enumerable,
+                });
 
                 // Prevent base class methods from overwriting subclass overrides
                 skipMethods.add(name);
