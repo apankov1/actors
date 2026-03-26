@@ -175,7 +175,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
 
       // Then webSocketClose works
       const mockWs = createMockWebSocket();
-      await actor.webSocketClose(mockWs, 1000);
+      await actor.webSocketClose(mockWs, 1000, '', true);
 
       // FIXED: onInit is called first, then onWebSocketDisconnect
       expect(callOrder).toEqual(["onInit", "onWebSocketDisconnect"]);
@@ -350,7 +350,7 @@ describe("Actor Lifecycle - Pairwise Entry Point × State Matrix", () => {
 
       // All entry points proceed after init
       await actor.webSocketMessage(mockWs, "test");
-      await actor.webSocketClose(mockWs, 1000);
+      await actor.webSocketClose(mockWs, 1000, '', true);
 
       // All handlers called in order after onInit
       expect(callOrder).toEqual(["onInit", "onWebSocketMessage", "onWebSocketDisconnect"]);
@@ -495,7 +495,7 @@ describe("Additional Entry Point Tests", () => {
       // Concurrent message and close
       await Promise.all([
         actor.webSocketMessage(ws1, "test"),
-        actor.webSocketClose(ws2, 1000),
+        actor.webSocketClose(ws2, 1000, '', true),
       ]);
 
       expect(callOrder).toContain("onWebSocketMessage");

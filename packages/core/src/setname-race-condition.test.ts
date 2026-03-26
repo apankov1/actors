@@ -285,7 +285,7 @@ describe("setName race condition fix", () => {
       await actor.setName("test-id");
 
       const ws = createMockWebSocket();
-      await actor.webSocketClose(ws, 1000);
+      await actor.webSocketClose(ws, 1000, '', true);
 
       expect(callOrder).toEqual(["onInit", "onWebSocketDisconnect"]);
     });
