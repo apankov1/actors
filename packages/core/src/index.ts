@@ -171,6 +171,20 @@ export abstract class Actor<E> extends DurableObject<E> {
             ctx.blockConcurrencyWhile(async () => {
                 // Load persisted properties
                 await this._initializePersistedProperties();
+
+                // Set autoResponse in constructor so it's active on every wake
+                // (including hibernation). Previously set in fetch() which only
+                // runs on HTTP requests — never reached for WS upgrade or alarm wake.
+                const ActorClass = this.constructor as typeof Actor;
+                const config = ActorClass.configuration();
+                if (config?.sockets?.autoResponse) {
+                    ctx.setWebSocketAutoResponse(
+                        new WebSocketRequestResponsePair(
+                            config.sockets.autoResponse.ping,
+                            config.sockets.autoResponse.pong,
+                        ),
+                    );
+                }
             });
         } else {
             this.storage = new Storage(undefined);
@@ -313,12 +327,6 @@ export abstract class Actor<E> extends DurableObject<E> {
             }
         }
 
-        // Autoresponse in sockets allows clients to send a ping message and receive a pong response
-        // without waking the durable object up from hibernation.
-        if (config?.sockets?.autoResponse) {
-            this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(config.sockets.autoResponse.ping, config.sockets.autoResponse.pong));
-        }
-
         // Wait for setName to be called before running onRequest
         if (!this._setNameCalled) {
             // If setName hasn't been called yet, wait for it
@@ -373,8 +381,8 @@ export abstract class Actor<E> extends DurableObject<E> {
 
     // Only need to override if you want to handle the socket upgrade yourself.
     // Otherwise this is all handled for you automatically.
-    protected onWebSocketUpgrade(request: Request): Response {
-        const { client, server } = this.sockets.acceptWebSocket(request);
+    protected onWebSocketUpgrade(request: Request, tags?: string[]): Response {
+        const { client, server } = this.sockets.acceptWebSocket(request, tags);
         
         const response = new Response(null, {
             status: 101,
@@ -393,7 +401,36 @@ export abstract class Actor<E> extends DurableObject<E> {
         // Default implementation is a no-op
     }
 
-    protected onWebSocketDisconnect(ws: WebSocket) {
+    /**
+     * Called when a WebSocket connection is closed.
+     *
+     * Receives the full close frame from the Cloudflare Hibernation API:
+     * code, reason, and wasClean. Subclasses can override to handle disconnection
+     * with full context about why the peer disconnected.
+     *
+     * @see https://developers.cloudflare.com/durable-objects/api/base/#websocketclose
+     *
+     * @param ws - The WebSocket that was closed
+     * @param code - Close code (e.g. 1000=normal, 1001=going away, 1006=abnormal)
+     * @param reason - Reason string from the peer (may be empty)
+     * @param wasClean - Whether the close completed with a proper handshake
+     */
+    protected onWebSocketDisconnect(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+        // Default implementation is a no-op
+    }
+
+    /**
+     * Called when a non-disconnection error occurs on a WebSocket.
+     *
+     * Maps to the Cloudflare Hibernation API's webSocketError handler.
+     * Subclasses should override to log errors, clean up state, or close the socket.
+     *
+     * @see https://developers.cloudflare.com/durable-objects/api/base/#websocketerror
+     *
+     * @param ws - The WebSocket that encountered an error
+     * @param error - The error that occurred
+     */
+    protected onWebSocketError(ws: WebSocket, error: unknown) {
         // Default implementation is a no-op
     }
 
@@ -416,13 +453,24 @@ export abstract class Actor<E> extends DurableObject<E> {
 
         this.sockets.webSocketMessage(ws, message);
 
-        // Call user defined onWebSocketMessage method before proceeding
-        this.onWebSocketMessage(ws, message);
+        // Await user handler so async work (e.g. storage.setAlarm) completes
+        // before the platform considers the handler done and allows hibernation.
+        await this.onWebSocketMessage(ws, message);
     }
 
+    /**
+     * Cloudflare Hibernation API entry point for WebSocket close events.
+     *
+     * Forwards the full close frame (code, reason, wasClean) through to
+     * Sockets.webSocketClose and onWebSocketDisconnect.
+     *
+     * @see https://developers.cloudflare.com/durable-objects/api/base/#websocketclose
+     */
     async webSocketClose(
         ws: WebSocket,
-        code: number
+        code: number,
+        reason: string,
+        wasClean: boolean,
     ) {
         // Wait for initialization to complete before handling WebSocket close.
         // This ensures onWebSocketDisconnect has access to the correct identifier and state.
@@ -436,11 +484,34 @@ export abstract class Actor<E> extends DurableObject<E> {
             }
         }
 
-        // Close the WebSocket connection
-        this.sockets.webSocketClose(ws, code);
+        // Close the WebSocket connection (reciprocates the close handshake)
+        this.sockets.webSocketClose(ws, code, reason, wasClean);
 
         // Call user defined onWebSocketDisconnect method before proceeding
-        this.onWebSocketDisconnect(ws);
+        this.onWebSocketDisconnect(ws, code, reason, wasClean);
+    }
+
+    /**
+     * Cloudflare Hibernation API entry point for WebSocket error events.
+     *
+     * Called when a non-disconnection error occurs on a WebSocket connection.
+     * Waits for initialization before forwarding to onWebSocketError.
+     *
+     * @see https://developers.cloudflare.com/durable-objects/api/base/#websocketerror
+     */
+    async webSocketError(ws: WebSocket, error: unknown) {
+        // Wait for initialization to complete before handling WebSocket errors.
+        if (!this._setNameCalled) {
+            try {
+                await this._waitForSetName();
+            } catch (initError) {
+                console.error('Failed to wait for setName in webSocketError:', initError);
+                throw initError;
+            }
+        }
+
+        // Call user defined onWebSocketError method
+        this.onWebSocketError(ws, error);
     }
 
     async alarm(alarmInfo?: AlarmInvocationInfo): Promise<void> {

@@ -87,7 +87,7 @@ describe("E2E: Full Actor Session Lifecycle", () => {
       const ws = createMockWebSocket();
       await actor.webSocketMessage(ws, "hello");
       await actor.webSocketMessage(ws, "world");
-      await actor.webSocketClose(ws, 1000);
+      await actor.webSocketClose(ws, 1000, '', true);
       expect(state.messageCount).toBe(2);
 
       // Phase 4: Alarm (cleanup/maintenance)
